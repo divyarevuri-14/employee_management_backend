@@ -1,179 +1,58 @@
-import json
+from rest_framework import viewsets
+from rest_framework import filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-
-from .forms import EmployeeForm
 from .models import Employee
+from .serializers import EmployeeSerializer
 
 
-def employee_to_dict(employee):
-    return {
-        "id": employee.id,
-        "employee_code": employee.employee_code,
-        "first_name": employee.first_name,
-        "last_name": employee.last_name,
-        "email": employee.email,
-        "phone": employee.phone,
-        "department": employee.department,
-        "designation": employee.designation,
-        "salary": str(employee.salary),
-        "joining_date": employee.joining_date.isoformat(),
-        "is_active": employee.is_active,
-        "created_at": employee.created_at.isoformat(),
-        "updated_at": employee.updated_at.isoformat(),
-    }
+class EmployeeViewSet(viewsets.ModelViewSet):
 
+    queryset = Employee.objects.all().order_by("id")
 
-def get_request_data(request):
-    if request.content_type == "application/json":
-        try:
-            return json.loads(request.body)
-        except json.JSONDecodeError:
-            return None
+    serializer_class = EmployeeSerializer
 
-    return request.POST
+    filter_backends = [
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
 
+    search_fields = [
+        "employee_code",
+        "first_name",
+        "last_name",
+        "email",
+        "department",
+        "designation",
+    ]
 
-@csrf_exempt
-def employee_list(request):
+    ordering_fields = [
+        "id",
+        "first_name",
+        "salary",
+        "joining_date",
+        "created_at",
+    ]
 
-    if request.method == "GET":
-        employees = Employee.objects.all().order_by("id")
+    ordering = [
+        "id",
+    ]
 
-        data = [
-            employee_to_dict(employee)
-            for employee in employees
-        ]
-
-        return JsonResponse(
-            {
-                "success": True,
-                "count": len(data),
-                "employees": data,
-            },
-            status=200,
-        )
-
-    if request.method == "POST":
-        data = get_request_data(request)
-
-        if data is None:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "message": "Invalid JSON data.",
-                },
-                status=400,
-            )
-
-        form = EmployeeForm(data)
-
-        if form.is_valid():
-            employee = form.save()
-
-            return JsonResponse(
-                {
-                    "success": True,
-                    "message": "Employee created successfully.",
-                    "employee": employee_to_dict(employee),
-                },
-                status=201,
-            )
-
-        return JsonResponse(
-            {
-                "success": False,
-                "errors": form.errors.get_json_data(),
-            },
-            status=400,
-        )
-
-    return JsonResponse(
-        {
-            "success": False,
-            "message": "Method not allowed.",
-        },
-        status=405,
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="active"
     )
+    def active_employees(self, request):
 
-
-@csrf_exempt
-def employee_detail(request, id):
-
-    try:
-        employee = Employee.objects.get(id=id)
-
-    except Employee.DoesNotExist:
-        return JsonResponse(
-            {
-                "success": False,
-                "message": "Employee not found.",
-            },
-            status=404,
+        active_employees = self.get_queryset().filter(
+            is_active=True
         )
 
-    if request.method == "GET":
-        return JsonResponse(
-            {
-                "success": True,
-                "employee": employee_to_dict(employee),
-            },
-            status=200,
+        serializer = self.get_serializer(
+            active_employees,
+            many=True
         )
 
-    if request.method in ["PUT", "PATCH"]:
-        data = get_request_data(request)
-
-        if data is None:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "message": "Invalid JSON data.",
-                },
-                status=400,
-            )
-
-        form = EmployeeForm(
-            data,
-            instance=employee
-        )
-
-        if form.is_valid():
-            employee = form.save()
-
-            return JsonResponse(
-                {
-                    "success": True,
-                    "message": "Employee updated successfully.",
-                    "employee": employee_to_dict(employee),
-                },
-                status=200,
-            )
-
-        return JsonResponse(
-            {
-                "success": False,
-                "errors": form.errors.get_json_data(),
-            },
-            status=400,
-        )
-
-    if request.method == "DELETE":
-        employee.delete()
-
-        return JsonResponse(
-            {
-                "success": True,
-                "message": "Employee deleted successfully.",
-            },
-            status=200,
-        )
-
-    return JsonResponse(
-        {
-            "success": False,
-            "message": "Method not allowed.",
-        },
-        status=405,
-    )
+        return Response(serializer.data)

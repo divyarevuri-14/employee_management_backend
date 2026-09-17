@@ -1,17 +1,19 @@
 from django.urls import path
 
-from .views import EmployeeListAPIView, EmployeeDetailAPIView
-
+from .views import (
+    EmployeeListCreateAPIView,
+    EmployeeDetailAPIView,
+)
 
 urlpatterns = [
     path(
-        'employees/',
-        EmployeeListAPIView.as_view(),
-        name='employee-list'
+        "employees/",
+        EmployeeListCreateAPIView.as_view(),
+        name="employee-list-create",
     ),
     path(
-        'employees/<int:id>/',
+        "employees/<int:id>/",
         EmployeeDetailAPIView.as_view(),
-        name='employee-detail'
+        name="employee-detail",
     ),
 ]
