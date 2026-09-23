@@ -1,3 +1,4 @@
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import EmployeeViewSet
@@ -11,4 +12,9 @@ router.register(
     basename="employee"
 )
 
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path(
+        "reports/",
+        include("employees.report_urls")
+    ),
+]
