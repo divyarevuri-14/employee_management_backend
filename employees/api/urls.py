@@ -4,10 +4,13 @@ from .views import (
     EmployeeListCreateAPIView,
     EmployeeDetailAPIView,
     EmployeeDetailsView,
+    EmployeeTransferView,
+    EmployeeTransferHistoryView,
 )
 
 
 urlpatterns = [
+    # Employee APIs
     path(
         "employees/details/",
         EmployeeDetailsView.as_view(),
@@ -24,5 +27,18 @@ urlpatterns = [
         "employees/<int:id>/",
         EmployeeDetailAPIView.as_view(),
         name="employee-detail",
+    ),
+
+    # Employee Transfer
+    path(
+        "employees/<int:employee_id>/transfer/",
+        EmployeeTransferView.as_view(),
+        name="employee-transfer",
+    ),
+
+    path(
+        "employees/<int:employee_id>/transfer-history/",
+        EmployeeTransferHistoryView.as_view(),
+        name="employee-transfer-history",
     ),
 ]

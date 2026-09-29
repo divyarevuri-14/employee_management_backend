@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 
 class Department(models.Model):
@@ -35,7 +36,7 @@ class Employee(models.Model):
     # OLD FIELD - keep temporarily
     department = models.CharField(max_length=100)
 
-    # NEW FOREIGN KEY - temporary field
+    # NEW FOREIGN KEY
     department_fk = models.ForeignKey(
         Department,
         on_delete=models.PROTECT,
@@ -45,7 +46,10 @@ class Employee(models.Model):
     )
 
     designation = models.CharField(max_length=100)
-    salary = models.DecimalField(max_digits=10, decimal_places=2)
+    salary = models.DecimalField(
+        max_digits=10,
+        decimal_places=2
+    )
     joining_date = models.DateField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -69,10 +73,23 @@ class EmployeeProfile(models.Model):
         null=True,
         blank=True
     )
-    date_of_birth = models.DateField(null=True, blank=True)
+
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True
+    )
+
     address = models.TextField(blank=True)
-    emergency_contact = models.CharField(max_length=15, blank=True)
-    blood_group = models.CharField(max_length=5, blank=True)
+
+    emergency_contact = models.CharField(
+        max_length=15,
+        blank=True
+    )
+
+    blood_group = models.CharField(
+        max_length=5,
+        blank=True
+    )
 
     profile_image = models.ImageField(
         upload_to="employee_profiles/",
@@ -85,3 +102,55 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f"{self.employee.employee_code} Profile"
+
+
+class EmployeeTransfer(models.Model):
+
+    class TransferStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        COMPLETED = "COMPLETED", "Completed"
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        related_name="transfers"
+    )
+
+    from_department = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="transfers_from"
+    )
+
+    to_department = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="transfers_to"
+    )
+
+    reason = models.TextField()
+
+    transferred_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="employee_transfers"
+    )
+
+    transferred_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=TransferStatus.choices,
+        default=TransferStatus.PENDING
+    )
+
+    def __str__(self):
+        return (
+            f"{self.employee.employee_code} - "
+            f"{self.from_department.name} to "
+            f"{self.to_department.name}"
+        )

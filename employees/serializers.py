@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Employee
+from employees.models import Employee, EmployeeTransfer
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -72,3 +72,28 @@ class EmployeeSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+class EmployeeTransferSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = EmployeeTransfer
+
+        fields = [
+            "id",
+            "employee",
+            "from_department",
+            "to_department",
+            "reason",
+            "transferred_by",
+            "transferred_at",
+            "status",
+        ]
+
+        read_only_fields = [
+            "id",
+            "employee",
+            "from_department",
+            "transferred_by",
+            "transferred_at",
+            "status",
+        ]
