@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.contrib.auth.models import User
 
 
 class Department(models.Model):
@@ -154,3 +155,27 @@ class EmployeeTransfer(models.Model):
             f"{self.from_department.name} to "
             f"{self.to_department.name}"
         )
+
+class UserProfile(models.Model):
+
+    ROLE_CHOICES = [
+        ('ADMIN', 'Admin'),
+        ('HR', 'HR'),
+        ('MANAGER', 'Manager'),
+        ('EMPLOYEE', 'Employee'),
+    ]
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='profile'
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='EMPLOYEE'
+    )
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role}"

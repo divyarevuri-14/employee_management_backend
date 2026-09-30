@@ -5,6 +5,7 @@ from rest_framework.generics import (
     ListCreateAPIView,
     RetrieveUpdateDestroyAPIView,
 )
+from rest_framework.permissions import IsAuthenticated
 
 from employees.models import Employee, EmployeeTransfer
 from employees.serializers import (
@@ -15,25 +16,76 @@ from employees.services.employee_transfer_service import (
     EmployeeTransferService,
 )
 
+from employees.permissions import (
+    IsAdmin,
+    IsAdminOrHR,
+    IsAdminHROrManager,
+)
+
+
+# ============================================================
+# EMPLOYEE LIST + CREATE
+# ============================================================
 
 class EmployeeListCreateAPIView(ListCreateAPIView):
+
     queryset = Employee.objects.all().order_by("id")
     serializer_class = EmployeeSerializer
 
+    def get_permissions(self):
+
+        # GET → ADMIN, HR, MANAGER
+        if self.request.method == "GET":
+            return [IsAdminHROrManager()]
+
+        # POST → ADMIN, HR
+        if self.request.method == "POST":
+            return [IsAdminOrHR()]
+
+        return [IsAuthenticated()]
+
+
+# ============================================================
+# EMPLOYEE DETAIL
+# ============================================================
 
 class EmployeeDetailAPIView(RetrieveUpdateDestroyAPIView):
+
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
     lookup_field = "id"
 
+    def get_permissions(self):
+
+        # GET → ADMIN, HR, MANAGER
+        if self.request.method == "GET":
+            return [IsAdminHROrManager()]
+
+        # PUT/PATCH → ADMIN, HR
+        if self.request.method in ["PUT", "PATCH"]:
+            return [IsAdminOrHR()]
+
+        # DELETE → ADMIN only
+        if self.request.method == "DELETE":
+            return [IsAdmin()]
+
+        return [IsAuthenticated()]
+
+
+# ============================================================
+# EMPLOYEE DETAILS / QUERY OPTIMIZATION API
+# ============================================================
 
 class EmployeeDetailsView(APIView):
+
+    permission_classes = [IsAdminHROrManager]
 
     def get(self, request):
 
         # Optimized queryset:
-        # select_related() for ForeignKey and OneToOne
-        # prefetch_related() for ManyToMany
+        # select_related() → ForeignKey and OneToOne
+        # prefetch_related() → ManyToMany
+
         employees = Employee.objects.select_related(
             "department_fk",
             "profile"
@@ -87,12 +139,44 @@ class EmployeeDetailsView(APIView):
         return Response(data)
 
 
+# ============================================================
+# EMPLOYEE VIEWSET
+# ============================================================
+
 class EmployeeViewSet(viewsets.ModelViewSet):
+
     queryset = Employee.objects.all().order_by("id")
     serializer_class = EmployeeSerializer
 
+    def get_permissions(self):
+
+        # LIST / RETRIEVE
+        if self.action in ["list", "retrieve"]:
+            return [IsAdminHROrManager()]
+
+        # CREATE
+        if self.action == "create":
+            return [IsAdminOrHR()]
+
+        # UPDATE
+        if self.action in ["update", "partial_update"]:
+            return [IsAdminOrHR()]
+
+        # DELETE
+        if self.action == "destroy":
+            return [IsAdmin()]
+
+        return [IsAuthenticated()]
+
+
+# ============================================================
+# EMPLOYEE TRANSFER
+# ============================================================
 
 class EmployeeTransferView(APIView):
+
+    # Only ADMIN and HR can transfer employees
+    permission_classes = [IsAdminOrHR]
 
     def post(self, request, employee_id):
 
@@ -158,7 +242,14 @@ class EmployeeTransferView(APIView):
             )
 
 
+# ============================================================
+# EMPLOYEE TRANSFER HISTORY
+# ============================================================
+
 class EmployeeTransferHistoryView(APIView):
+
+    # ADMIN, HR and MANAGER can view transfer history
+    permission_classes = [IsAdminHROrManager]
 
     def get(self, request, employee_id):
 
@@ -180,3 +271,36 @@ class EmployeeTransferHistoryView(APIView):
         )
 
         return Response(serializer.data)
+
+
+# ============================================================
+# MY PROFILE
+# ============================================================
+
+class MyProfileView(APIView):
+
+    # All authenticated users can access their own profile
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        user = request.user
+
+        # Make sure UserProfile exists
+        if not hasattr(user, "profile"):
+            return Response(
+                {
+                    "error": "User profile not found."
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.profile.role,
+            },
+            status=status.HTTP_200_OK
+        )
