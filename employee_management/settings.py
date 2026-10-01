@@ -17,11 +17,63 @@ load_dotenv(BASE_DIR / ".env")
 # SECURITY
 # ============================================================
 
-SECRET_KEY = "django-insecure-change-this-in-production"
+# Secret key is loaded from environment variable
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-development-only-key"
+)
 
-DEBUG = True
+# Development setting
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = []
+# Development hosts
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+]
+
+
+# ============================================================
+# CORS
+# ============================================================
+
+# Allow only trusted frontend origins.
+# Do NOT use CORS_ALLOW_ALL_ORIGINS = True in production.
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+
+# ============================================================
+# CSRF
+# ============================================================
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+
+# ============================================================
+# SECURE COOKIE SETTINGS
+# ============================================================
+
+# Keep False for local HTTP development.
+# Enable True when the application is deployed over HTTPS.
+
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+
+# Enable in production only when HTTPS is configured.
+SECURE_SSL_REDIRECT = False
+
+# Prevent browsers from MIME-sniffing responses.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Clickjacking protection.
+X_FRAME_OPTIONS = "DENY"
 
 
 # ============================================================
@@ -38,6 +90,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     # Third-party apps
+    "corsheaders",
     "rest_framework",
 
     # Local apps
@@ -211,6 +264,17 @@ REST_FRAMEWORK = {
     ),
 
     "PAGE_SIZE": 5,
+
+    # API Throttling
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "60/minute",
+    },
 }
 
 
@@ -226,3 +290,8 @@ SIMPLE_JWT = {
     # Refresh token valid for 1 day
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
