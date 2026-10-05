@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
+from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.generics import (
     ListCreateAPIView,
@@ -304,3 +305,14 @@ class MyProfileView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+def health_check(request):
+
+    return JsonResponse({
+        "status": "ok"
+    })

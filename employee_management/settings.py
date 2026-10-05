@@ -18,10 +18,10 @@ load_dotenv(BASE_DIR / ".env")
 # ============================================================
 
 # Secret key is loaded from environment variable
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-development-only-key"
-)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("DJANGO_SECRET_KEY is missing from .env")
 
 # Development setting
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
@@ -88,13 +88,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
+   
     # Third-party apps
     "corsheaders",
     "rest_framework",
 
     # Local apps
-    "employees",
+    "employees.apps.EmployeesConfig",
     "authentication",
 ]
 
@@ -112,12 +112,17 @@ MIDDLEWARE = [
 
     "django.middleware.csrf.CsrfViewMiddleware",
 
+    "corsheaders.middleware.CorsMiddleware",
+
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 
     "django.contrib.messages.middleware.MessageMiddleware",
 
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
+    "employee_management.middleware.RequestLoggingMiddleware",
 ]
+
 
 
 # ============================================================
@@ -295,3 +300,38 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+
+    "formatters": {
+        "verbose": {
+            "format": (
+                "{levelname} {asctime} {name} "
+                "{message}"
+            ),
+            "style": "{",
+        },
+    },
+
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+
+    "loggers": {
+        "employee_management": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "employees": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

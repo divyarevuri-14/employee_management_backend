@@ -7,9 +7,18 @@ from employees.api.views import (
     EmployeeTransferView,
     EmployeeTransferHistoryView,
     MyProfileView,
+    health_check,
 )
 
+
 urlpatterns = [
+
+    # Health Check
+    path(
+        "health/",
+        health_check,
+        name="health-check",
+    ),
 
     # Employee list and create
     path(

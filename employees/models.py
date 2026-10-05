@@ -179,3 +179,44 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.role}"
+
+
+from django.conf import settings
+from django.db import models
+
+class EmployeeAudit(models.Model):
+
+    ACTION_CREATED = "CREATED"
+    ACTION_UPDATED = "UPDATED"
+
+    ACTION_CHOICES = [
+        (ACTION_CREATED, "Created"),
+        (ACTION_UPDATED, "Updated"),
+    ]
+
+    employee = models.ForeignKey(
+        "Employee",
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+    )
+
+    action = models.CharField(
+        max_length=20,
+        choices=ACTION_CHOICES,
+    )
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_audits",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.employee.employee_code} - {self.action}"
