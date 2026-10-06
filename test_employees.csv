@@ -1,0 +1,4 @@
+employee_code,first_name,last_name,email,phone,department,designation,salary,joining_date
+EMP101,Ravi,Kumar,ravi101@example.com,9876500001,IT,Developer,50000,2025-01-10
+EMP102,Sita,Reddy,sita102@example.com,9876500002,HR,HR Executive,45000,2025-02-15
+EMP103,Arjun,Varma,arjun103@example.com,9876500003,Finance,Analyst,55000,2025-03-20

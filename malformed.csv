@@ -1,0 +1,3 @@
+employee_code,first_name,last_name,email,phone,department,designation,salary,joining_date
+EMP206,Ravi
+EMP207,Sita,Reddy,sita207@example.com,9876500002,HR,HR Executive,45000,2025-02-15
