@@ -23,8 +23,10 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("DJANGO_SECRET_KEY is missing from .env")
 
+
 # Development setting
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
 
 # Development hosts
 ALLOWED_HOSTS = [
@@ -64,6 +66,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Enable True when the application is deployed over HTTPS.
 
 SESSION_COOKIE_SECURE = False
+
 CSRF_COOKIE_SECURE = False
 
 # Enable in production only when HTTPS is configured.
@@ -81,6 +84,7 @@ X_FRAME_OPTIONS = "DENY"
 # ============================================================
 
 INSTALLED_APPS = [
+
     # Django apps
     "django.contrib.admin",
     "django.contrib.auth",
@@ -88,7 +92,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-   
+
     # Third-party apps
     "corsheaders",
     "rest_framework",
@@ -104,6 +108,7 @@ INSTALLED_APPS = [
 # ============================================================
 
 MIDDLEWARE = [
+
     "django.middleware.security.SecurityMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -120,9 +125,9 @@ MIDDLEWARE = [
 
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
+    # Custom request logging middleware
     "employee_management.middleware.RequestLoggingMiddleware",
 ]
-
 
 
 # ============================================================
@@ -146,6 +151,7 @@ TEMPLATES = [
 
         "OPTIONS": {
             "context_processors": [
+
                 "django.template.context_processors.request",
 
                 "django.contrib.auth.context_processors.auth",
@@ -170,6 +176,7 @@ WSGI_APPLICATION = "employee_management.wsgi.application"
 
 DATABASES = {
     "default": {
+
         "ENGINE": "django.db.backends.postgresql",
 
         "NAME": os.getenv("DB_NAME"),
@@ -178,11 +185,83 @@ DATABASES = {
 
         "PASSWORD": os.getenv("DB_PASSWORD"),
 
-        "HOST": os.getenv("DB_HOST", "localhost"),
+        "HOST": os.getenv(
+            "DB_HOST",
+            "localhost"
+        ),
 
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "PORT": os.getenv(
+            "DB_PORT",
+            "5432"
+        ),
     }
 }
+
+
+# ============================================================
+# EMAIL CONFIGURATION
+# ADV-003 — Email & Notification Service
+# ============================================================
+
+# Development email backend.
+#
+# Emails will NOT be sent to real email addresses.
+# Instead, Django will print the email content
+# in the terminal.
+#
+# This prevents accidental real email sending
+# during development and testing.
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+)
+
+
+# Default sender email address
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "no-reply@example.com"
+)
+
+
+# SMTP host
+EMAIL_HOST = os.getenv(
+    "EMAIL_HOST",
+    ""
+)
+
+
+# SMTP port
+EMAIL_PORT = int(
+    os.getenv(
+        "EMAIL_PORT",
+        "587"
+    )
+)
+
+
+# TLS configuration
+EMAIL_USE_TLS = (
+    os.getenv(
+        "EMAIL_USE_TLS",
+        "False"
+    ).lower() == "true"
+)
+
+
+# SMTP username
+EMAIL_HOST_USER = os.getenv(
+    "EMAIL_HOST_USER",
+    ""
+)
+
+
+# SMTP password
+EMAIL_HOST_PASSWORD = os.getenv(
+    "EMAIL_HOST_PASSWORD",
+    ""
+)
 
 
 # ============================================================
@@ -190,6 +269,7 @@ DATABASES = {
 # ============================================================
 
 AUTH_PASSWORD_VALIDATORS = [
+
     {
         "NAME": (
             "django.contrib.auth.password_validation."
@@ -290,22 +370,29 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
 
     # Access token valid for 5 minutes
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=5
+    ),
 
     # Refresh token valid for 1 day
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=1
+    ),
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+
+# ============================================================
+# LOGGING
+# ============================================================
 
 LOGGING = {
+
     "version": 1,
+
     "disable_existing_loggers": False,
 
     "formatters": {
+
         "verbose": {
             "format": (
                 "{levelname} {asctime} {name} "
@@ -316,6 +403,7 @@ LOGGING = {
     },
 
     "handlers": {
+
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
@@ -323,11 +411,13 @@ LOGGING = {
     },
 
     "loggers": {
+
         "employee_management": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
+
         "employees": {
             "handlers": ["console"],
             "level": "INFO",

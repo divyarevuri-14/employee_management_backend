@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome</title>
+</head>
+<body>
+    <h2>Welcome to our organization, {{ employee.first_name }}!</h2>
+
+    <p>Dear {{ employee.first_name }} {{ employee.last_name }},</p>
+
+    <p>
+        Welcome to the organization.
+        We are happy to have you with us.
+    </p>
+
+    <p>
+        Employee Code: {{ employee.employee_code }}
+    </p>
+
+    <p>
+        Department: {{ employee.department }}
+    </p>
+
+    <p>
+        Regards,<br>
+        HR Team
+    </p>
+</body>
+</html>

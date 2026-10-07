@@ -1,7 +1,15 @@
 from rest_framework import serializers
 
-from employees.models import Employee, EmployeeTransfer
+from employees.models import (
+    Employee,
+    EmployeeTransfer,
+    Notification,
+)
 
+
+# ============================================================
+# EMPLOYEE SERIALIZER
+# ============================================================
 
 class EmployeeSerializer(serializers.ModelSerializer):
 
@@ -73,6 +81,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
         return value
 
+
+# ============================================================
+# EMPLOYEE TRANSFER SERIALIZER
+# ============================================================
+
 class EmployeeTransferSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -97,3 +110,34 @@ class EmployeeTransferSerializer(serializers.ModelSerializer):
             "transferred_at",
             "status",
         ]
+
+
+# ============================================================
+# NOTIFICATION SERIALIZER
+# ADV-003 — Email & Notification Service
+# ============================================================
+
+class NotificationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Notification
+
+        fields = [
+            "id",
+            "employee",
+            "title",
+            "message",
+            "notification_type",
+            "status",
+            "is_read",
+            "read_at",
+            "created_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "status",
+            "created_at",
+            "read_at",
+        ]
+
