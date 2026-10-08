@@ -1,0 +1,39 @@
+Employee Code,First Name,Last Name,Email,Phone,Department,Designation,Salary,Joining Date,Active
+EMP016,Employee16,Test,employee16@example.com,9876540016,IT (IT),Python Developer,51000.00,2025-01-01,True
+EMP017,Employee17,Test,employee17@example.com,9876540017,IT (IT),Python Developer,52000.00,2025-01-01,True
+EMP018,Employee18,Test,employee18@example.com,9876540018,IT (IT),Python Developer,53000.00,2025-01-01,True
+EMP019,Employee19,Test,employee19@example.com,9876540019,IT (IT),Python Developer,54000.00,2025-01-01,True
+EMP020,Employee20,Test,employee20@example.com,9876540020,IT (IT),Python Developer,55000.00,2025-01-01,True
+EMP021,Employee21,Test,employee21@example.com,9876540021,IT (IT),Python Developer,56000.00,2025-01-01,True
+EMP001,Employee1,Updated,employee1@example.com,9876543210,Frontend (FE),Developer,50000.00,2026-09-01,True
+EMP004,Employee4,Test,employee4@example.com,9876540004,Backend (BE),Python Developer,47190.00,2025-01-01,True
+EMP014,Employee14,Test,employee14@example.com,9876540014,Backend (BE),Python Developer,59290.00,2025-01-01,True
+EMP003,Employee3,Test,employee3@example.com,9876540003,Backend (BE),Python Developer,45980.00,2025-01-01,True
+EMP007,Employee7,Test,employee7@example.com,9876540007,Backend (BE),Python Developer,50820.00,2025-01-01,True
+EMP009,Employee9,Test,employee9@example.com,9876540009,Backend (BE),Python Developer,53240.00,2025-01-01,True
+EMP010,Employee10,Test,employee10@example.com,9876540010,Backend (BE),Python Developer,54450.00,2025-01-01,True
+EMP013,Employee13,Test,employee13@example.com,9876540013,Backend (BE),Python Developer,58080.00,2025-01-01,True
+EMP005,Employee5,Test,employee5@example.com,9876540005,Backend (BE),Python Developer,48400.00,2025-01-01,True
+EMP002,Employee2,Test,employee2@example.com,9876540002,Backend (BE),Python Developer,44770.00,2025-01-01,True
+EMP015,Employee15,Test,employee15@example.com,9876540015,Backend (BE),Python Developer,60500.00,2025-01-01,True
+EMP006,Employee6,Test,employee6@example.com,9876540006,Backend (BE),Python Developer,49610.00,2025-01-01,True
+EMP012,Employee12,Test,employee12@example.com,9876540012,Backend (BE),Python Developer,56870.00,2025-01-01,True
+EMP008,Employee8,Test,employee8@example.com,9876540008,Backend (BE),Python Developer,52030.00,2025-01-01,True
+EMP022,Employee22,Test,employee22@example.com,9876540022,IT (IT),Python Developer,57000.00,2025-01-01,True
+EMP023,Employee23,Test,employee23@example.com,9876540023,IT (IT),Python Developer,58000.00,2025-01-01,True
+EMP024,Employee24,Test,employee24@example.com,9876540024,IT (IT),Python Developer,59000.00,2025-01-01,True
+EMP025,Employee25,Test,employee25@example.com,9876540025,IT (IT),Python Developer,60000.00,2025-01-01,True
+EMP026,Employee26,Test,employee26@example.com,9876540026,IT (IT),Python Developer,61000.00,2025-01-01,True
+EMP027,Employee27,Test,employee27@example.com,9876540027,IT (IT),Python Developer,62000.00,2025-01-01,True
+EMP028,Employee28,Test,employee28@example.com,9876540028,IT (IT),Python Developer,63000.00,2025-01-01,True
+EMP029,Employee29,Test,employee29@example.com,9876540029,IT (IT),Python Developer,64000.00,2025-01-01,True
+EMP030,Employee30,Test,employee30@example.com,9876540030,IT (IT),Python Developer,65000.00,2025-01-01,True
+EMP0011,divyatej,Kumar,ravi@example.com,9876543210,IT (IT),Python Developer,35000.00,2026-09-21,True
+EMP011,Employee11,Test,employee11@example.com,9876540011,Backend (BE),Python Developer,55660.00,2025-01-01,True
+SEC001,Security,Test,securitytest@example.com,9876543210,IT,Developer,50000.00,2026-10-01,True
+EMP101,Ravi,Kumar,ravi101@example.com,9876500001,IT,Developer,50000.00,2025-01-10,True
+EMP102,Sita,Reddy,sita102@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
+EMP103,Arjun,Varma,arjun103@example.com,9876500003,Finance,Analyst,55000.00,2025-03-20,True
+EMP203,Sita,Reddy,sita203@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
+EMP205,Sita,Reddy,sita205@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
+EMP207,Sita,Reddy,sita207@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
