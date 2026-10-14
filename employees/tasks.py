@@ -1,11 +1,13 @@
 import csv
 import logging
 import os
-import time
+import smtplib
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import IntegrityError, OperationalError, transaction
 
 from .models import Employee
 
@@ -19,17 +21,19 @@ logger = logging.getLogger(__name__)
 
 @shared_task(
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
+    autoretry_for=(OperationalError, smtplib.SMTPException, OSError),
     retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    soft_time_limit=60,
+    time_limit=75,
 )
 def send_welcome_email(self, employee_id):
-    """
-    Send welcome email asynchronously to an employee.
-    """
+    """Send a welcome email to an employee."""
 
     logger.info(
-        "Welcome email task started for employee_id=%s",
+        "Welcome email task started: employee_id=%s",
         employee_id,
     )
 
@@ -49,7 +53,7 @@ def send_welcome_email(self, employee_id):
         )
 
         logger.info(
-            "Welcome email sent successfully for employee_id=%s",
+            "Welcome email sent: employee_id=%s",
             employee_id,
         )
 
@@ -66,11 +70,10 @@ def send_welcome_email(self, employee_id):
         )
         raise
 
-    except Exception as exc:
-        logger.error(
-            "Welcome email task failed for employee_id=%s: %s",
+    except Exception:
+        logger.exception(
+            "Welcome email task failed: employee_id=%s",
             employee_id,
-            exc,
         )
         raise
 
@@ -81,71 +84,64 @@ def send_welcome_email(self, employee_id):
 
 @shared_task(
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
+    autoretry_for=(OperationalError,),
     retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=60,
+    time_limit=75,
 )
 def generate_employee_report(self):
-    """
-    Generate employee report as a CSV file asynchronously.
-    """
+    """Generate an employee CSV report."""
 
     logger.info("Employee report generation started")
 
+    temp_path = None
+
     try:
-        employees = Employee.objects.all()
+        employees = Employee.objects.select_related(
+            "department_fk"
+        ).all()
 
         employee_count = employees.count()
 
-        # Create reports directory
         reports_dir = os.path.join(
             settings.MEDIA_ROOT,
             "reports",
         )
-
-        os.makedirs(
-            reports_dir,
-            exist_ok=True,
-        )
-
-        # Report file path
-        file_name = "employee_report.csv"
+        os.makedirs(reports_dir, exist_ok=True)
 
         file_path = os.path.join(
             reports_dir,
-            file_name,
+            "employee_report.csv",
         )
+        temp_path = file_path + ".tmp"
 
-        # Generate CSV report
         with open(
-            file_path,
+            temp_path,
             "w",
             newline="",
             encoding="utf-8",
         ) as csv_file:
-
             writer = csv.writer(csv_file)
 
-            # CSV header
-            writer.writerow(
-                [
-                    "Employee Code",
-                    "First Name",
-                    "Last Name",
-                    "Email",
-                    "Phone",
-                    "Department",
-                    "Designation",
-                    "Salary",
-                    "Joining Date",
-                    "Active",
-                ]
-            )
+            writer.writerow([
+                "Employee Code",
+                "First Name",
+                "Last Name",
+                "Email",
+                "Phone",
+                "Department",
+                "Designation",
+                "Salary",
+                "Joining Date",
+                "Active",
+            ])
 
-            # Employee data
             for employee in employees:
-
-                # Use ForeignKey department if available
                 if employee.department_fk:
                     department_name = str(
                         employee.department_fk
@@ -153,27 +149,24 @@ def generate_employee_report(self):
                 else:
                     department_name = employee.department
 
-                writer.writerow(
-                    [
-                        employee.employee_code,
-                        employee.first_name,
-                        employee.last_name,
-                        employee.email,
-                        employee.phone,
-                        department_name,
-                        employee.designation,
-                        employee.salary,
-                        employee.joining_date,
-                        employee.is_active,
-                    ]
-                )
+                writer.writerow([
+                    employee.employee_code,
+                    employee.first_name,
+                    employee.last_name,
+                    employee.email,
+                    employee.phone,
+                    department_name,
+                    employee.designation,
+                    employee.salary,
+                    employee.joining_date,
+                    employee.is_active,
+                ])
 
-        # Simulate long-running processing
-        time.sleep(5)
+        # Replace the old report only after the new report is ready.
+        os.replace(temp_path, file_path)
 
         logger.info(
-            "Employee report generated successfully. "
-            "Total employees=%s, file=%s",
+            "Employee report generated: count=%s, file=%s",
             employee_count,
             file_path,
         )
@@ -185,12 +178,19 @@ def generate_employee_report(self):
             "message": "Employee report generated successfully",
         }
 
-    except Exception as exc:
-        logger.error(
-            "Employee report generation failed: %s",
-            exc,
+    except OperationalError:
+        logger.exception(
+            "Temporary database error during report generation"
         )
         raise
+
+    except Exception:
+        logger.exception("Employee report generation failed")
+        raise
+
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 # ============================================================
@@ -199,22 +199,30 @@ def generate_employee_report(self):
 
 @shared_task(
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
+    autoretry_for=(OperationalError,),
     retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=60,
+    time_limit=75,
 )
 def process_employee_csv(self, file_path):
     """
-    Process employee CSV file asynchronously.
+    Import employees from a CSV file.
+
+    Existing employee codes or emails are skipped.
+    Reprocessing the same file should not create duplicates.
     """
 
     logger.info(
-        "CSV processing started for file=%s",
+        "CSV processing started: file=%s",
         file_path,
     )
 
     try:
-        # Check whether file exists
         if not os.path.exists(file_path):
             raise FileNotFoundError(
                 f"CSV file not found: {file_path}"
@@ -223,7 +231,6 @@ def process_employee_csv(self, file_path):
         processed_rows = 0
         skipped_rows = 0
 
-        # Required CSV columns
         required_headers = {
             "employee_code",
             "first_name",
@@ -235,101 +242,139 @@ def process_employee_csv(self, file_path):
             file_path,
             "r",
             newline="",
-            encoding="utf-8",
+            encoding="utf-8-sig",
         ) as csv_file:
 
             reader = csv.DictReader(csv_file)
 
-            # Validate headers
             if not reader.fieldnames:
                 raise ValueError(
                     "CSV file does not contain headers"
                 )
 
-            actual_headers = {
-                header.strip()
+            # Normalize headers so spaces do not break row.get().
+            reader.fieldnames = [
+                header.strip() if header else header
                 for header in reader.fieldnames
-                if header
-            }
+            ]
 
-            missing_headers = (
-                required_headers - actual_headers
-            )
+            actual_headers = set(reader.fieldnames)
+            missing_headers = required_headers - actual_headers
 
             if missing_headers:
                 raise ValueError(
-                    f"Missing required headers: "
-                    f"{', '.join(sorted(missing_headers))}"
+                    "Missing required headers: "
+                    + ", ".join(sorted(missing_headers))
                 )
 
-            # Process rows
             for row in reader:
-
                 employee_code = (
-                    row.get("employee_code", "").strip()
-                )
+                    row.get("employee_code") or ""
+                ).strip()
 
                 first_name = (
-                    row.get("first_name", "").strip()
-                )
+                    row.get("first_name") or ""
+                ).strip()
 
                 last_name = (
-                    row.get("last_name", "").strip()
-                )
+                    row.get("last_name") or ""
+                ).strip()
 
                 email = (
-                    row.get("email", "").strip()
-                )
+                    row.get("email") or ""
+                ).strip()
 
-                # Validate required values
-                if not all(
-                    [
-                        employee_code,
-                        first_name,
-                        last_name,
-                        email,
-                    ]
-                ):
+                # Skip rows with missing required values.
+                if not all([
+                    employee_code,
+                    first_name,
+                    last_name,
+                    email,
+                ]):
+                    logger.warning(
+                        "Skipping row with missing required fields"
+                    )
                     skipped_rows += 1
                     continue
 
-                # Avoid duplicate employee records
-                if Employee.objects.filter(
+                # Check both unique fields and log the exact reason.
+                code_exists = Employee.objects.filter(
                     employee_code=employee_code
-                ).exists():
+                ).exists()
+
+                email_exists = Employee.objects.filter(
+                    email=email
+                ).exists()
+
+                if code_exists or email_exists:
+                    logger.warning(
+                        "Duplicate employee skipped: "
+                        "code=%s, email=%s, "
+                        "code_exists=%s, email_exists=%s",
+                        employee_code,
+                        email,
+                        code_exists,
+                        email_exists,
+                    )
                     skipped_rows += 1
                     continue
 
-                # Create employee
-                Employee.objects.create(
-                    employee_code=employee_code,
-                    first_name=first_name,
-                    last_name=last_name,
-                    email=email,
-                    phone=row.get("phone", "").strip(),
-                    department=row.get(
-                        "department",
-                        "",
-                    ).strip(),
-                    designation=row.get(
-                        "designation",
-                        "",
-                    ).strip(),
-                    salary=row.get(
-                        "salary",
-                        0,
-                    ) or 0,
-                    joining_date=row.get(
-                        "joining_date"
-                    ),
-                    is_active=True,
-                )
+                try:
+                    with transaction.atomic():
+                        Employee.objects.create(
+                            employee_code=employee_code,
+                            first_name=first_name,
+                            last_name=last_name,
+                            email=email,
+                            phone=(
+                                row.get("phone") or ""
+                            ).strip(),
+                            department=(
+                                row.get("department") or ""
+                            ).strip(),
+                            designation=(
+                                row.get("designation") or ""
+                            ).strip(),
+                            salary=(
+                                row.get("salary") or 0
+                            ),
+                            joining_date=(
+                                row.get("joining_date") or None
+                            ),
+                            is_active=True,
+                        )
 
-                processed_rows += 1
+                    processed_rows += 1
+
+                    logger.info(
+                        "Employee created successfully: code=%s",
+                        employee_code,
+                    )
+
+                except IntegrityError:
+                    # A concurrent task may have inserted a duplicate.
+                    # Verify the cause before treating it as a duplicate.
+                    duplicate_now = (
+                        Employee.objects.filter(
+                            employee_code=employee_code
+                        ).exists()
+                        or Employee.objects.filter(
+                            email=email
+                        ).exists()
+                    )
+
+                    if not duplicate_now:
+                        raise
+
+                    logger.warning(
+                        "Concurrent duplicate skipped: code=%s",
+                        employee_code,
+                    )
+                    skipped_rows += 1
 
         logger.info(
-            "CSV processed successfully. "
-            "Processed=%s, Skipped=%s, File=%s",
+            "CSV processing completed: "
+            "processed=%s, skipped=%s, file=%s",
             processed_rows,
             skipped_rows,
             file_path,
@@ -343,10 +388,23 @@ def process_employee_csv(self, file_path):
             "message": "CSV processed successfully",
         }
 
-    except Exception as exc:
-        logger.error(
-            "CSV processing failed for file=%s: %s",
+    except SoftTimeLimitExceeded:
+        logger.exception(
+            "CSV task exceeded soft time limit: %s",
             file_path,
-            exc,
+        )
+        raise
+
+    except OperationalError:
+        logger.exception(
+            "Database operation failed during CSV processing: %s",
+            file_path,
+        )
+        raise
+
+    except Exception:
+        logger.exception(
+            "CSV processing failed: file=%s",
+            file_path,
         )
         raise
