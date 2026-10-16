@@ -1,7 +1,10 @@
+
 import csv
 import logging
 import os
 import smtplib
+import time
+from functools import wraps
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -12,7 +15,50 @@ from django.db import IntegrityError, OperationalError, transaction
 from .models import Employee
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("employees")
+
+
+# ============================================================
+# COMMON TASK EXECUTION LOGGING
+# ============================================================
+
+def log_task_execution(task_func):
+    """
+    Log task start, completion, duration, and failures.
+    """
+
+    @wraps(task_func)
+    def wrapper(*args, **kwargs):
+        task_name = task_func.__name__
+        start_time = time.perf_counter()
+
+        logger.info("Task started: %s", task_name)
+
+        try:
+            result = task_func(*args, **kwargs)
+
+            duration = time.perf_counter() - start_time
+
+            logger.info(
+                "Task finished: %s | duration=%.2f seconds",
+                task_name,
+                duration,
+            )
+
+            return result
+
+        except Exception:
+            duration = time.perf_counter() - start_time
+
+            logger.exception(
+                "Task failed: %s | duration=%.2f seconds",
+                task_name,
+                duration,
+            )
+
+            raise
+
+    return wrapper
 
 
 # ============================================================
@@ -21,7 +67,11 @@ logger = logging.getLogger(__name__)
 
 @shared_task(
     bind=True,
-    autoretry_for=(OperationalError, smtplib.SMTPException, OSError),
+    autoretry_for=(
+        OperationalError,
+        smtplib.SMTPException,
+        OSError,
+    ),
     retry_kwargs={"max_retries": 3},
     retry_backoff=True,
     retry_backoff_max=60,
@@ -29,13 +79,9 @@ logger = logging.getLogger(__name__)
     soft_time_limit=60,
     time_limit=75,
 )
+@log_task_execution
 def send_welcome_email(self, employee_id):
     """Send a welcome email to an employee."""
-
-    logger.info(
-        "Welcome email task started: employee_id=%s",
-        employee_id,
-    )
 
     try:
         employee = Employee.objects.get(id=employee_id)
@@ -70,20 +116,14 @@ def send_welcome_email(self, employee_id):
         )
         raise
 
-    except Exception:
-        logger.exception(
-            "Welcome email task failed: employee_id=%s",
-            employee_id,
-        )
-        raise
-
 
 # ============================================================
-# 2. GENERATE EMPLOYEE REPORT
+# 2. DAILY EMPLOYEE REPORT
 # ============================================================
 
 @shared_task(
     bind=True,
+    name="employees.tasks.generate_daily_employee_report",
     autoretry_for=(OperationalError,),
     retry_kwargs={"max_retries": 3},
     retry_backoff=True,
@@ -94,10 +134,9 @@ def send_welcome_email(self, employee_id):
     soft_time_limit=60,
     time_limit=75,
 )
-def generate_employee_report(self):
-    """Generate an employee CSV report."""
-
-    logger.info("Employee report generation started")
+@log_task_execution
+def generate_daily_employee_report(self):
+    """Generate the daily employee CSV report."""
 
     temp_path = None
 
@@ -162,11 +201,11 @@ def generate_employee_report(self):
                     employee.is_active,
                 ])
 
-        # Replace the old report only after the new report is ready.
+        # Replace the report only after successful file generation.
         os.replace(temp_path, file_path)
 
         logger.info(
-            "Employee report generated: count=%s, file=%s",
+            "Daily report generated: employees=%s, file=%s",
             employee_count,
             file_path,
         )
@@ -175,22 +214,16 @@ def generate_employee_report(self):
             "status": "success",
             "employee_count": employee_count,
             "file_path": file_path,
-            "message": "Employee report generated successfully",
+            "message": "Daily employee report generated",
         }
-
-    except OperationalError:
-        logger.exception(
-            "Temporary database error during report generation"
-        )
-        raise
-
-    except Exception:
-        logger.exception("Employee report generation failed")
-        raise
 
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+# Backward-compatible Python import for existing code.
+generate_employee_report = generate_daily_employee_report
 
 
 # ============================================================
@@ -209,202 +242,208 @@ def generate_employee_report(self):
     soft_time_limit=60,
     time_limit=75,
 )
+@log_task_execution
 def process_employee_csv(self, file_path):
-    """
-    Import employees from a CSV file.
+    """Import employees from a CSV file."""
 
-    Existing employee codes or emails are skipped.
-    Reprocessing the same file should not create duplicates.
-    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(
+            f"CSV file not found: {file_path}"
+        )
 
-    logger.info(
-        "CSV processing started: file=%s",
+    processed_rows = 0
+    skipped_rows = 0
+
+    required_headers = {
+        "employee_code",
+        "first_name",
+        "last_name",
+        "email",
+    }
+
+    with open(
         file_path,
-    )
+        "r",
+        newline="",
+        encoding="utf-8-sig",
+    ) as csv_file:
 
-    try:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(
-                f"CSV file not found: {file_path}"
+        reader = csv.DictReader(csv_file)
+
+        if not reader.fieldnames:
+            raise ValueError(
+                "CSV file does not contain headers"
             )
 
-        processed_rows = 0
-        skipped_rows = 0
+        reader.fieldnames = [
+            header.strip() if header else header
+            for header in reader.fieldnames
+        ]
 
-        required_headers = {
-            "employee_code",
-            "first_name",
-            "last_name",
-            "email",
-        }
+        missing_headers = (
+            required_headers - set(reader.fieldnames)
+        )
 
-        with open(
-            file_path,
-            "r",
-            newline="",
-            encoding="utf-8-sig",
-        ) as csv_file:
+        if missing_headers:
+            raise ValueError(
+                "Missing required headers: "
+                + ", ".join(sorted(missing_headers))
+            )
 
-            reader = csv.DictReader(csv_file)
+        for row in reader:
+            employee_code = (
+                row.get("employee_code") or ""
+            ).strip()
 
-            if not reader.fieldnames:
-                raise ValueError(
-                    "CSV file does not contain headers"
+            first_name = (
+                row.get("first_name") or ""
+            ).strip()
+
+            last_name = (
+                row.get("last_name") or ""
+            ).strip()
+
+            email = (
+                row.get("email") or ""
+            ).strip()
+
+            if not all([
+                employee_code,
+                first_name,
+                last_name,
+                email,
+            ]):
+                logger.warning(
+                    "Skipping CSV row with missing required fields"
                 )
+                skipped_rows += 1
+                continue
 
-            # Normalize headers so spaces do not break row.get().
-            reader.fieldnames = [
-                header.strip() if header else header
-                for header in reader.fieldnames
-            ]
+            code_exists = Employee.objects.filter(
+                employee_code=employee_code
+            ).exists()
 
-            actual_headers = set(reader.fieldnames)
-            missing_headers = required_headers - actual_headers
+            email_exists = Employee.objects.filter(
+                email=email
+            ).exists()
 
-            if missing_headers:
-                raise ValueError(
-                    "Missing required headers: "
-                    + ", ".join(sorted(missing_headers))
-                )
-
-            for row in reader:
-                employee_code = (
-                    row.get("employee_code") or ""
-                ).strip()
-
-                first_name = (
-                    row.get("first_name") or ""
-                ).strip()
-
-                last_name = (
-                    row.get("last_name") or ""
-                ).strip()
-
-                email = (
-                    row.get("email") or ""
-                ).strip()
-
-                # Skip rows with missing required values.
-                if not all([
+            if code_exists or email_exists:
+                logger.warning(
+                    "Duplicate employee skipped: code=%s, "
+                    "email=%s, code_exists=%s, email_exists=%s",
                     employee_code,
-                    first_name,
-                    last_name,
                     email,
-                ]):
-                    logger.warning(
-                        "Skipping row with missing required fields"
-                    )
-                    skipped_rows += 1
-                    continue
+                    code_exists,
+                    email_exists,
+                )
+                skipped_rows += 1
+                continue
 
-                # Check both unique fields and log the exact reason.
-                code_exists = Employee.objects.filter(
-                    employee_code=employee_code
-                ).exists()
-
-                email_exists = Employee.objects.filter(
-                    email=email
-                ).exists()
-
-                if code_exists or email_exists:
-                    logger.warning(
-                        "Duplicate employee skipped: "
-                        "code=%s, email=%s, "
-                        "code_exists=%s, email_exists=%s",
-                        employee_code,
-                        email,
-                        code_exists,
-                        email_exists,
-                    )
-                    skipped_rows += 1
-                    continue
-
-                try:
-                    with transaction.atomic():
-                        Employee.objects.create(
-                            employee_code=employee_code,
-                            first_name=first_name,
-                            last_name=last_name,
-                            email=email,
-                            phone=(
-                                row.get("phone") or ""
-                            ).strip(),
-                            department=(
-                                row.get("department") or ""
-                            ).strip(),
-                            designation=(
-                                row.get("designation") or ""
-                            ).strip(),
-                            salary=(
-                                row.get("salary") or 0
-                            ),
-                            joining_date=(
-                                row.get("joining_date") or None
-                            ),
-                            is_active=True,
-                        )
-
-                    processed_rows += 1
-
-                    logger.info(
-                        "Employee created successfully: code=%s",
-                        employee_code,
+            try:
+                with transaction.atomic():
+                    Employee.objects.create(
+                        employee_code=employee_code,
+                        first_name=first_name,
+                        last_name=last_name,
+                        email=email,
+                        phone=(
+                            row.get("phone") or ""
+                        ).strip(),
+                        department=(
+                            row.get("department") or ""
+                        ).strip(),
+                        designation=(
+                            row.get("designation") or ""
+                        ).strip(),
+                        salary=(
+                            row.get("salary") or 0
+                        ),
+                        joining_date=(
+                            row.get("joining_date") or None
+                        ),
+                        is_active=True,
                     )
 
-                except IntegrityError:
-                    # A concurrent task may have inserted a duplicate.
-                    # Verify the cause before treating it as a duplicate.
-                    duplicate_now = (
-                        Employee.objects.filter(
-                            employee_code=employee_code
-                        ).exists()
-                        or Employee.objects.filter(
-                            email=email
-                        ).exists()
-                    )
+                processed_rows += 1
 
-                    if not duplicate_now:
-                        raise
+                logger.info(
+                    "Employee created: code=%s",
+                    employee_code,
+                )
 
-                    logger.warning(
-                        "Concurrent duplicate skipped: code=%s",
-                        employee_code,
-                    )
-                    skipped_rows += 1
+            except IntegrityError:
+                # Check whether a concurrent insert caused the conflict.
+                duplicate_now = (
+                    Employee.objects.filter(
+                        employee_code=employee_code
+                    ).exists()
+                    or Employee.objects.filter(
+                        email=email
+                    ).exists()
+                )
 
-        logger.info(
-            "CSV processing completed: "
-            "processed=%s, skipped=%s, file=%s",
-            processed_rows,
-            skipped_rows,
-            file_path,
-        )
+                if not duplicate_now:
+                    raise
 
-        return {
-            "status": "success",
-            "file_path": file_path,
-            "processed_rows": processed_rows,
-            "skipped_rows": skipped_rows,
-            "message": "CSV processed successfully",
-        }
+                logger.warning(
+                    "Concurrent duplicate skipped: code=%s",
+                    employee_code,
+                )
+                skipped_rows += 1
 
-    except SoftTimeLimitExceeded:
-        logger.exception(
-            "CSV task exceeded soft time limit: %s",
-            file_path,
-        )
-        raise
+    logger.info(
+        "CSV processing summary: processed=%s, skipped=%s",
+        processed_rows,
+        skipped_rows,
+    )
 
-    except OperationalError:
-        logger.exception(
-            "Database operation failed during CSV processing: %s",
-            file_path,
-        )
-        raise
+    return {
+        "status": "success",
+        "file_path": file_path,
+        "processed_rows": processed_rows,
+        "skipped_rows": skipped_rows,
+        "message": "CSV processed successfully",
+    }
 
-    except Exception:
-        logger.exception(
-            "CSV processing failed: file=%s",
-            file_path,
-        )
-        raise
+
+# ============================================================
+# 4. INACTIVE EMPLOYEE MAINTENANCE
+# ============================================================
+
+@shared_task(
+    bind=True,
+    name="employees.tasks.run_inactive_employee_maintenance",
+    autoretry_for=(OperationalError,),
+    retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=60,
+    time_limit=75,
+)
+@log_task_execution
+def run_inactive_employee_maintenance(self):
+    """
+    Monitor the current inactive employee count.
+
+    This task does not modify employee records.
+    Add the approved maintenance rule here if required.
+    """
+
+    inactive_count = Employee.objects.filter(
+        is_active=False
+    ).count()
+
+    logger.info(
+        "Inactive employee maintenance check completed: "
+        "inactive_count=%s",
+        inactive_count,
+    )
+
+    return {
+        "status": "success",
+        "inactive_employee_count": inactive_count,
+        "message": "Inactive employee check completed",
+    }

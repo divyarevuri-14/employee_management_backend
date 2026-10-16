@@ -207,6 +207,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
             "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        ),
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
             "NumericPasswordValidator"
         ),
     },
@@ -214,10 +220,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # ============================================================
-# INTERNATIONALIZATION
+# INTERNATIONALIZATION AND TIMEZONE
 # ============================================================
 
 LANGUAGE_CODE = "en-us"
+
+# India Standard Time
 TIME_ZONE = "Asia/Kolkata"
 
 USE_I18N = True
@@ -283,7 +291,7 @@ SIMPLE_JWT = {
 
 
 # ============================================================
-# LOGGING
+# LOGGING - APPLICATION AND CELERY
 # ============================================================
 
 LOGGING = {
@@ -292,7 +300,9 @@ LOGGING = {
 
     "formatters": {
         "verbose": {
-            "format": "{levelname} {asctime} {name} {message}",
+            "format": (
+                "{levelname} {asctime} {name} {message}"
+            ),
             "style": "{",
         },
     },
@@ -341,16 +351,10 @@ CACHES = {
 
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-
-            # Continue if Redis is temporarily unavailable.
-            # Cache errors may be ignored.
             "IGNORE_EXCEPTIONS": True,
         },
 
-        # Default cache lifetime: 5 minutes
         "TIMEOUT": 300,
-
-        # Avoid collisions with other applications
         "KEY_PREFIX": "employee_management",
     },
 }
@@ -359,7 +363,7 @@ DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
 
 
 # ============================================================
-# CELERY CONFIGURATION
+# CELERY BROKER AND RESULT BACKEND
 # ============================================================
 
 CELERY_BROKER_URL = os.getenv(
@@ -376,41 +380,46 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
+# Track when a task starts
 CELERY_TASK_TRACK_STARTED = True
 
-# Reliability: acknowledge after task execution
+# Reliability settings
 CELERY_TASK_ACKS_LATE = True
-
-# Requeue a task if its worker process is lost
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
-
-# Acknowledge tasks that fail or hit a time limit.
-# These tasks are not automatically requeued by this setting.
 CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT = True
 
-# Allow one task to be reserved per worker process
+# Worker task distribution
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
-# Task execution time limits
+# Task execution limits
 CELERY_TASK_SOFT_TIME_LIMIT = 60
 CELERY_TASK_TIME_LIMIT = 75
 
+# Celery timezone configuration
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 
 
 # ============================================================
-# CELERY BEAT - SCHEDULED JOBS
+# CELERY BEAT - PERIODIC SCHEDULES
 # ============================================================
 
 CELERY_BEAT_SCHEDULE = {
+    # Daily employee report at 8:00 AM IST
     "daily-employee-report": {
         "task": "employees.tasks.generate_daily_employee_report",
-        "schedule": crontab(hour=8, minute=0),
+        "schedule": crontab(
+            hour=8,
+            minute=0,
+        ),
     },
 
+    # Inactive employee maintenance at 1:00 AM IST
     "inactive-employee-maintenance": {
         "task": "employees.tasks.run_inactive_employee_maintenance",
-        "schedule": crontab(hour=1, minute=0),
+        "schedule": crontab(
+            hour=1,
+            minute=0,
+        ),
     },
 }

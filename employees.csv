@@ -1,3 +1,4 @@
+
 employee_code,first_name,last_name,email,phone,department,designation,salary,joining_date,is_active
 EMP001,Employee1,Updated,employee1@example.com,9876543210,IT,Developer,50000.00,2026-09-01,True
 EMP0011,divyatej,Kumar,ravi@example.com,9876543210,IT,Python Developer,35000.00,2026-09-21,True

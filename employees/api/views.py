@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from django.http import JsonResponse
@@ -16,12 +18,17 @@ from employees.serializers import (
 from employees.services.employee_transfer_service import (
     EmployeeTransferService,
 )
+from employees.services.cache_service import (
+    invalidate_department_employee_summary,
+)
 
 from employees.permissions import (
     IsAdmin,
     IsAdminOrHR,
     IsAdminHROrManager,
 )
+
+logger = logging.getLogger("employees")
 
 
 # ============================================================
@@ -35,15 +42,18 @@ class EmployeeListCreateAPIView(ListCreateAPIView):
 
     def get_permissions(self):
 
-        # GET → ADMIN, HR, MANAGER
         if self.request.method == "GET":
             return [IsAdminHROrManager()]
 
-        # POST → ADMIN, HR
         if self.request.method == "POST":
             return [IsAdminOrHR()]
 
         return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+
+        serializer.save()
+        invalidate_department_employee_summary()
 
 
 # ============================================================
@@ -58,19 +68,26 @@ class EmployeeDetailAPIView(RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
 
-        # GET → ADMIN, HR, MANAGER
         if self.request.method == "GET":
             return [IsAdminHROrManager()]
 
-        # PUT/PATCH → ADMIN, HR
         if self.request.method in ["PUT", "PATCH"]:
             return [IsAdminOrHR()]
 
-        # DELETE → ADMIN only
         if self.request.method == "DELETE":
             return [IsAdmin()]
 
         return [IsAuthenticated()]
+
+    def perform_update(self, serializer):
+
+        serializer.save()
+        invalidate_department_employee_summary()
+
+    def perform_destroy(self, instance):
+
+        instance.delete()
+        invalidate_department_employee_summary()
 
 
 # ============================================================
@@ -82,10 +99,6 @@ class EmployeeDetailsView(APIView):
     permission_classes = [IsAdminHROrManager]
 
     def get(self, request):
-
-        # Optimized queryset:
-        # select_related() → ForeignKey and OneToOne
-        # prefetch_related() → ManyToMany
 
         employees = Employee.objects.select_related(
             "department_fk",
@@ -118,7 +131,9 @@ class EmployeeDetailsView(APIView):
                             else None
                         ),
                         "address": employee.profile.address,
-                        "emergency_contact": employee.profile.emergency_contact,
+                        "emergency_contact": (
+                            employee.profile.emergency_contact
+                        ),
                         "blood_group": employee.profile.blood_group,
                     }
                     if hasattr(employee, "profile")
@@ -151,23 +166,34 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
 
-        # LIST / RETRIEVE
         if self.action in ["list", "retrieve"]:
             return [IsAdminHROrManager()]
 
-        # CREATE
         if self.action == "create":
             return [IsAdminOrHR()]
 
-        # UPDATE
         if self.action in ["update", "partial_update"]:
             return [IsAdminOrHR()]
 
-        # DELETE
         if self.action == "destroy":
             return [IsAdmin()]
 
         return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+
+        serializer.save()
+        invalidate_department_employee_summary()
+
+    def perform_update(self, serializer):
+
+        serializer.save()
+        invalidate_department_employee_summary()
+
+    def perform_destroy(self, instance):
+
+        instance.delete()
+        invalidate_department_employee_summary()
 
 
 # ============================================================
@@ -176,36 +202,27 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
 class EmployeeTransferView(APIView):
 
-    # Only ADMIN and HR can transfer employees
     permission_classes = [IsAdminOrHR]
 
     def post(self, request, employee_id):
 
-        # Get data from request body
         to_department = request.data.get("to_department")
         reason = request.data.get("reason")
 
-        # Validate target department
         if not to_department:
             return Response(
-                {
-                    "error": "to_department is required."
-                },
+                {"error": "to_department is required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate reason
         if not reason or not reason.strip():
             return Response(
-                {
-                    "error": "Transfer reason is required."
-                },
+                {"error": "Transfer reason is required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
 
-            # Call transfer service
             transfer = EmployeeTransferService.transfer_employee(
                 employee_id=employee_id,
                 to_department_id=to_department,
@@ -213,7 +230,9 @@ class EmployeeTransferView(APIView):
                 transferred_by=request.user
             )
 
-            # Serialize transfer record
+            # Invalidate summary after successful transfer
+            invalidate_department_employee_summary()
+
             serializer = EmployeeTransferSerializer(transfer)
 
             return Response(
@@ -227,18 +246,16 @@ class EmployeeTransferView(APIView):
         except ValueError as e:
 
             return Response(
-                {
-                    "error": str(e)
-                },
+                {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         except Exception as e:
 
+            logger.exception("Employee transfer failed")
+
             return Response(
-                {
-                    "error": str(e)
-                },
+                {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -249,7 +266,6 @@ class EmployeeTransferView(APIView):
 
 class EmployeeTransferHistoryView(APIView):
 
-    # ADMIN, HR and MANAGER can view transfer history
     permission_classes = [IsAdminHROrManager]
 
     def get(self, request, employee_id):
@@ -280,19 +296,15 @@ class EmployeeTransferHistoryView(APIView):
 
 class MyProfileView(APIView):
 
-    # All authenticated users can access their own profile
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
 
         user = request.user
 
-        # Make sure UserProfile exists
         if not hasattr(user, "profile"):
             return Response(
-                {
-                    "error": "User profile not found."
-                },
+                {"error": "User profile not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
 

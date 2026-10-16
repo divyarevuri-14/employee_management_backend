@@ -37,3 +37,4 @@ EMP103,Arjun,Varma,arjun103@example.com,9876500003,Finance,Analyst,55000.00,2025
 EMP203,Sita,Reddy,sita203@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
 EMP205,Sita,Reddy,sita205@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
 EMP207,Sita,Reddy,sita207@example.com,9876500002,HR,HR Executive,45000.00,2025-02-15,True
+EMP_TEST_903,Retry,Test3,emp_test_903@example.com,9876543210,IT,Developer,25000.00,2026-10-14,True
