@@ -1,3 +1,4 @@
+
 import logging
 
 from django.core.cache import cache
@@ -5,29 +6,24 @@ from django.db.models import Count
 
 logger = logging.getLogger("employees")
 
-# Cache key naming convention
 CACHE_KEY = "employee:department_summary:v1"
-
-# Cache validity: 5 minutes
 CACHE_TIMEOUT = 300
 
 
 def get_department_employee_summary():
-    """
-    Return department-wise employee statistics.
+    """Return department summary, using the database if caching fails."""
+    cached_data = None
 
-    If cached data exists, return it from Redis.
-    Otherwise, fetch data from the database and cache it.
-    """
-
-    # Step 1: Check whether data is available in cache
-    cached_data = cache.get(CACHE_KEY)
+    # Try reading from cache. Redis may be unavailable.
+    try:
+        cached_data = cache.get(CACHE_KEY)
+    except Exception:
+        logger.exception("Department summary cache read failed")
 
     if cached_data is not None:
         logger.info("Department summary cache HIT")
         return cached_data
 
-    # Step 2: Cache MISS - fetch fresh data
     logger.info("Department summary cache MISS")
 
     from employees.models import Employee
@@ -39,19 +35,20 @@ def get_department_employee_summary():
         .order_by("department_fk__name")
     )
 
-    # Step 3: Store the result in cache for 5 minutes
-    cache.set(CACHE_KEY, summary, timeout=CACHE_TIMEOUT)
-
-    logger.info("Department summary cached successfully")
+    # Return the database result even if Redis write fails.
+    try:
+        cache.set(CACHE_KEY, summary, timeout=CACHE_TIMEOUT)
+        logger.info("Department summary cached successfully")
+    except Exception:
+        logger.exception("Department summary cache write failed")
 
     return summary
 
 
 def invalidate_department_employee_summary():
-    """
-    Invalidate cached department statistics after employee data changes.
-    """
-
-    cache.delete(CACHE_KEY)
-
-    logger.info("Department summary cache invalidated")
+    """Invalidate cached department statistics after employee changes."""
+    try:
+        cache.delete(CACHE_KEY)
+        logger.info("Department summary cache invalidated")
+    except Exception:
+        logger.exception("Department summary cache invalidation failed")
