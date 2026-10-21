@@ -2,8 +2,81 @@ from pathlib import Path
 import os
 
 from dotenv import load_dotenv
+from kombu import Exchange, Queue
 from datetime import timedelta
 from celery.schedules import crontab
+
+
+
+# ==========================================
+# CELERY QUEUE CONFIGURATION
+# ==========================================
+
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_DEFAULT_EXCHANGE = "default"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
+
+CELERY_TASK_QUEUES = (
+    Queue(
+        "default",
+        Exchange("default"),
+        routing_key="default",
+    ),
+    Queue(
+        "reports",
+        Exchange("reports"),
+        routing_key="reports",
+    ),
+    Queue(
+        "csv",
+        Exchange("csv"),
+        routing_key="csv",
+    ),
+)
+
+# Route tasks to separate queues
+CELERY_TASK_ROUTES = {
+    "employees.tasks.generate_daily_employee_report": {
+        "queue": "reports",
+    },
+    "employees.tasks.run_inactive_employee_maintenance": {
+        "queue": "reports",
+    },
+    "employees.tasks.process_employee_csv": {
+        "queue": "csv",
+    },
+}
+
+CELERY_BEAT_SCHEDULE = {
+    "daily-employee-report": {
+        "task": "employees.tasks.generate_daily_employee_report",
+        "schedule": crontab(hour=8, minute=0),
+        "options": {
+            "queue": "reports",
+            "expires": 3600,
+        },
+    },
+    "inactive-employee-maintenance": {
+        "task": "employees.tasks.run_inactive_employee_maintenance",
+        "schedule": crontab(hour=1, minute=0),
+        "options": {
+            "queue": "reports",
+            "expires": 3600,
+        },
+    },
+}
+
+# ==========================================
+# WORKER AND BACKPRESSURE SETTINGS
+# ==========================================
+
+CELERY_WORKER_CONCURRENCY = 2
+
+# Limit how many tasks a worker reserves in advance
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+# Default task expiration: 1 hour
+CELERY_TASK_DEFAULT_EXPIRES = 3600
 
 
 # ============================================================
