@@ -1,82 +1,11 @@
+
 from pathlib import Path
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from kombu import Exchange, Queue
-from datetime import timedelta
 from celery.schedules import crontab
-
-
-
-# ==========================================
-# CELERY QUEUE CONFIGURATION
-# ==========================================
-
-CELERY_TASK_DEFAULT_QUEUE = "default"
-CELERY_TASK_DEFAULT_EXCHANGE = "default"
-CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
-
-CELERY_TASK_QUEUES = (
-    Queue(
-        "default",
-        Exchange("default"),
-        routing_key="default",
-    ),
-    Queue(
-        "reports",
-        Exchange("reports"),
-        routing_key="reports",
-    ),
-    Queue(
-        "csv",
-        Exchange("csv"),
-        routing_key="csv",
-    ),
-)
-
-# Route tasks to separate queues
-CELERY_TASK_ROUTES = {
-    "employees.tasks.generate_daily_employee_report": {
-        "queue": "reports",
-    },
-    "employees.tasks.run_inactive_employee_maintenance": {
-        "queue": "reports",
-    },
-    "employees.tasks.process_employee_csv": {
-        "queue": "csv",
-    },
-}
-
-CELERY_BEAT_SCHEDULE = {
-    "daily-employee-report": {
-        "task": "employees.tasks.generate_daily_employee_report",
-        "schedule": crontab(hour=8, minute=0),
-        "options": {
-            "queue": "reports",
-            "expires": 3600,
-        },
-    },
-    "inactive-employee-maintenance": {
-        "task": "employees.tasks.run_inactive_employee_maintenance",
-        "schedule": crontab(hour=1, minute=0),
-        "options": {
-            "queue": "reports",
-            "expires": 3600,
-        },
-    },
-}
-
-# ==========================================
-# WORKER AND BACKPRESSURE SETTINGS
-# ==========================================
-
-CELERY_WORKER_CONCURRENCY = 2
-
-# Limit how many tasks a worker reserves in advance
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1
-
-# Default task expiration: 1 hour
-CELERY_TASK_DEFAULT_EXPIRES = 3600
 
 
 # ============================================================
@@ -106,18 +35,13 @@ ALLOWED_HOSTS = [
 
 
 # ============================================================
-# CORS
+# CORS AND CSRF
 # ============================================================
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
-
-
-# ============================================================
-# CSRF
-# ============================================================
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
@@ -142,19 +66,14 @@ X_FRAME_OPTIONS = "DENY"
 # ============================================================
 
 INSTALLED_APPS = [
-    # Django apps
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
-    # Third-party apps
     "corsheaders",
     "rest_framework",
-
-    # Local apps
     "employees.apps.EmployeesConfig",
     "authentication",
 ]
@@ -173,8 +92,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-
-    # Existing request logging middleware
     "employee_management.middleware.RequestLoggingMiddleware",
 ]
 
@@ -230,7 +147,7 @@ DATABASES = {
 
 
 # ============================================================
-# EMAIL CONFIGURATION - ADV-003
+# EMAIL CONFIGURATION
 # ============================================================
 
 EMAIL_BACKEND = os.getenv(
@@ -297,8 +214,6 @@ AUTH_PASSWORD_VALIDATORS = [
 # ============================================================
 
 LANGUAGE_CODE = "en-us"
-
-# India Standard Time
 TIME_ZONE = "Asia/Kolkata"
 
 USE_I18N = True
@@ -310,7 +225,6 @@ USE_TZ = True
 # ============================================================
 
 STATIC_URL = "static/"
-
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -330,22 +244,17 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
-
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-
     "DEFAULT_PAGINATION_CLASS": (
         "rest_framework.pagination.PageNumberPagination"
     ),
-
     "PAGE_SIZE": 5,
-
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-
     "DEFAULT_THROTTLE_RATES": {
         "anon": "20/minute",
         "user": "60/minute",
@@ -364,42 +273,35 @@ SIMPLE_JWT = {
 
 
 # ============================================================
-# LOGGING - APPLICATION AND CELERY
+# LOGGING
 # ============================================================
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-
     "formatters": {
         "verbose": {
-            "format": (
-                "{levelname} {asctime} {name} {message}"
-            ),
+            "format": "{levelname} {asctime} {name} {message}",
             "style": "{",
         },
     },
-
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
     },
-
     "loggers": {
         "employee_management": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
-
         "employees": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
-
         "celery": {
             "handlers": ["console"],
             "level": "INFO",
@@ -410,23 +312,20 @@ LOGGING = {
 
 
 # ============================================================
-# REDIS CACHE - ADV-005
+# REDIS CACHE
 # ============================================================
 
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-
         "LOCATION": os.getenv(
             "REDIS_CACHE_URL",
             "redis://127.0.0.1:6379/1",
         ),
-
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "IGNORE_EXCEPTIONS": True,
         },
-
         "TIMEOUT": 300,
         "KEY_PREFIX": "employee_management",
     },
@@ -453,22 +352,55 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
-# Track when a task starts
 CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_SEND_SENT_EVENT = True
+CELERY_WORKER_SEND_TASK_EVENTS = True
 
-# Reliability settings
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT = True
 
-# Worker task distribution
+CELERY_WORKER_CONCURRENCY = 2
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
-# Task execution limits
 CELERY_TASK_SOFT_TIME_LIMIT = 60
 CELERY_TASK_TIME_LIMIT = 75
 
-# Celery timezone configuration
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_DEFAULT_EXCHANGE = "default"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
+CELERY_TASK_DEFAULT_EXPIRES = 3600
+
+CELERY_TASK_QUEUES = (
+    Queue(
+        "default",
+        Exchange("default"),
+        routing_key="default",
+    ),
+    Queue(
+        "reports",
+        Exchange("reports"),
+        routing_key="reports",
+    ),
+    Queue(
+        "csv",
+        Exchange("csv"),
+        routing_key="csv",
+    ),
+)
+
+CELERY_TASK_ROUTES = {
+    "employees.tasks.generate_daily_employee_report": {
+        "queue": "reports",
+    },
+    "employees.tasks.run_inactive_employee_maintenance": {
+        "queue": "reports",
+    },
+    "employees.tasks.process_employee_csv": {
+        "queue": "csv",
+    },
+}
+
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 
@@ -478,21 +410,20 @@ CELERY_ENABLE_UTC = True
 # ============================================================
 
 CELERY_BEAT_SCHEDULE = {
-    # Daily employee report at 8:00 AM IST
     "daily-employee-report": {
         "task": "employees.tasks.generate_daily_employee_report",
-        "schedule": crontab(
-            hour=8,
-            minute=0,
-        ),
+        "schedule": crontab(hour=8, minute=0),
+        "options": {
+            "queue": "reports",
+            "expires": 3600,
+        },
     },
-
-    # Inactive employee maintenance at 1:00 AM IST
     "inactive-employee-maintenance": {
         "task": "employees.tasks.run_inactive_employee_maintenance",
-        "schedule": crontab(
-            hour=1,
-            minute=0,
-        ),
+        "schedule": crontab(hour=1, minute=0),
+        "options": {
+            "queue": "reports",
+            "expires": 3600,
+        },
     },
 }
