@@ -1,2 +1,2 @@
 employee_code,first_name,last_name,email,phone,department,designation,salary,joining_date
-EMP_TEST_903,Retry,Test3,emp_test_903@example.com,9876543210,IT,Developer,25000,2026-10-14
+EMP_DAY2_901,Test,Employee,emp_day2_901@example.com,9876543210,IT,Developer,25000,2026-10-01
